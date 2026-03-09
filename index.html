@@ -1,0 +1,430 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>STT 웹 테스트</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: "Malgun Gothic", "Apple SD Gothic Neo", sans-serif;
+      min-height: 100vh;
+      background: linear-gradient(135deg, #0f172a, #1e293b, #334155);
+      color: #e5e7eb;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+    }
+
+    .container {
+      width: 100%;
+      max-width: 760px;
+    }
+
+    .card {
+      background: rgba(15, 23, 42, 0.9);
+      border: 1px solid rgba(148, 163, 184, 0.18);
+      border-radius: 24px;
+      padding: 32px;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.35);
+      backdrop-filter: blur(10px);
+    }
+
+    .badge {
+      display: inline-block;
+      padding: 8px 14px;
+      border-radius: 999px;
+      background: rgba(59, 130, 246, 0.16);
+      color: #93c5fd;
+      font-size: 13px;
+      font-weight: 700;
+      margin-bottom: 16px;
+    }
+
+    h1 {
+      font-size: 34px;
+      font-weight: 800;
+      margin-bottom: 10px;
+      color: #f8fafc;
+    }
+
+    .subtitle {
+      color: #cbd5e1;
+      font-size: 15px;
+      line-height: 1.6;
+      margin-bottom: 28px;
+    }
+
+    .drop-zone {
+      border: 2px dashed rgba(148, 163, 184, 0.35);
+      border-radius: 20px;
+      padding: 28px;
+      background: rgba(30, 41, 59, 0.55);
+      margin-bottom: 20px;
+      transition: all 0.2s ease;
+      text-align: center;
+    }
+
+    .drop-zone.dragover {
+      border-color: #60a5fa;
+      background: rgba(37, 99, 235, 0.12);
+      box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.08);
+    }
+
+    .drop-title {
+      font-size: 20px;
+      font-weight: 800;
+      color: #f8fafc;
+      margin-bottom: 10px;
+    }
+
+    .drop-desc {
+      font-size: 14px;
+      color: #cbd5e1;
+      margin-bottom: 18px;
+      line-height: 1.6;
+    }
+
+    .file-input-wrap {
+      margin-bottom: 16px;
+    }
+
+    input[type="file"] {
+      width: 100%;
+      padding: 14px;
+      border-radius: 12px;
+      border: 1px solid rgba(148, 163, 184, 0.25);
+      background: rgba(15, 23, 42, 0.9);
+      color: #e5e7eb;
+      cursor: pointer;
+    }
+
+    .button-row {
+      display: flex;
+      gap: 12px;
+      margin-top: 10px;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+
+    button {
+      border: none;
+      border-radius: 14px;
+      padding: 14px 22px;
+      font-size: 15px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: transform 0.15s ease, opacity 0.15s ease, box-shadow 0.15s ease;
+    }
+
+    button:hover {
+      transform: translateY(-1px);
+      opacity: 0.96;
+    }
+
+    button:active {
+      transform: translateY(0);
+    }
+
+    .primary-btn {
+      background: linear-gradient(135deg, #2563eb, #3b82f6);
+      color: white;
+      box-shadow: 0 10px 24px rgba(37, 99, 235, 0.3);
+    }
+
+    .secondary-btn {
+      background: rgba(148, 163, 184, 0.12);
+      color: #e2e8f0;
+      border: 1px solid rgba(148, 163, 184, 0.2);
+    }
+
+    .info {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 12px;
+      margin: 24px 0 28px;
+    }
+
+    .info-item {
+      background: rgba(30, 41, 59, 0.6);
+      border: 1px solid rgba(148, 163, 184, 0.12);
+      border-radius: 16px;
+      padding: 16px;
+    }
+
+    .info-label {
+      font-size: 12px;
+      color: #94a3b8;
+      margin-bottom: 8px;
+    }
+
+    .info-value {
+      font-size: 14px;
+      color: #f8fafc;
+      font-weight: 700;
+      word-break: break-word;
+    }
+
+    .result-title {
+      font-size: 18px;
+      font-weight: 800;
+      margin-bottom: 12px;
+      color: #f8fafc;
+    }
+
+    .result-box {
+      min-height: 220px;
+      background: rgba(2, 6, 23, 0.78);
+      border: 1px solid rgba(148, 163, 184, 0.16);
+      border-radius: 18px;
+      padding: 18px;
+      white-space: pre-wrap;
+      word-break: break-word;
+      line-height: 1.7;
+      color: #e2e8f0;
+      font-size: 14px;
+    }
+
+    .status {
+      margin-top: 14px;
+      font-size: 13px;
+      color: #93c5fd;
+      min-height: 20px;
+    }
+
+    @media (max-width: 640px) {
+      .card {
+        padding: 22px;
+        border-radius: 18px;
+      }
+
+      h1 {
+        font-size: 28px;
+      }
+
+      .info {
+        grid-template-columns: 1fr;
+      }
+
+      .button-row {
+        flex-direction: column;
+      }
+
+      button {
+        width: 100%;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="card">
+      <div class="badge">FastAPI + OpenAI Whisper</div>
+      <h1>STT 음성 변환</h1>
+      <p class="subtitle">
+        파일 선택 또는 드래그앤드롭으로 음성 파일을 업로드해서 텍스트로 변환합니다.
+        지원 형식은 wav, mp3, m4a 입니다.
+      </p>
+
+      <div class="drop-zone" id="dropZone">
+        <div class="drop-title">여기에 파일을 끌어다 놓으세요</div>
+        <div class="drop-desc">
+          또는 아래 파일 선택 버튼으로 업로드하세요.
+        </div>
+
+        <div class="file-input-wrap">
+          <input type="file" id="audioFile" accept=".wav,.mp3,.m4a" />
+        </div>
+
+        <div class="button-row">
+          <button id="uploadButton" class="primary-btn" type="button">업로드 후 변환</button>
+          <button id="clearButton" class="secondary-btn" type="button">결과 지우기</button>
+        </div>
+      </div>
+
+      <div class="info">
+        <div class="info-item">
+          <div class="info-label">선택 파일</div>
+          <div class="info-value" id="fileName">없음</div>
+        </div>
+        <div class="info-item">
+          <div class="info-label">파일 크기</div>
+          <div class="info-value" id="fileSize">없음</div>
+        </div>
+        <div class="info-item">
+          <div class="info-label">상태</div>
+          <div class="info-value" id="fileStatus">대기 중</div>
+        </div>
+      </div>
+
+      <div class="result-title">변환 결과</div>
+      <div class="result-box" id="result">여기에 STT 결과가 표시됩니다.</div>
+      <div class="status" id="statusMessage"></div>
+    </div>
+  </div>
+
+  <script>
+    const dropZone = document.getElementById("dropZone");
+    const uploadButton = document.getElementById("uploadButton");
+    const clearButton = document.getElementById("clearButton");
+    const audioFile = document.getElementById("audioFile");
+    const result = document.getElementById("result");
+    const statusMessage = document.getElementById("statusMessage");
+    const fileName = document.getElementById("fileName");
+    const fileSize = document.getElementById("fileSize");
+    const fileStatus = document.getElementById("fileStatus");
+
+    let selectedFile = null;
+    const allowedExtensions = [".wav", ".mp3", ".m4a"];
+
+    function formatFileSize(bytes) {
+      if (!bytes && bytes !== 0) {
+        return "없음";
+      }
+
+      const units = ["B", "KB", "MB", "GB"];
+      let size = bytes;
+      let unitIndex = 0;
+
+      while (size >= 1024 && unitIndex < units.length - 1) {
+        size /= 1024;
+        unitIndex += 1;
+      }
+
+      return `${size.toFixed(2)} ${units[unitIndex]}`;
+    }
+
+    function isAllowedFile(file) {
+      const lowerName = file.name.toLowerCase();
+      return allowedExtensions.some(ext => lowerName.endsWith(ext));
+    }
+
+    function updateFileInfo(file) {
+      if (!file) {
+        fileName.textContent = "없음";
+        fileSize.textContent = "없음";
+        fileStatus.textContent = "대기 중";
+        return;
+      }
+
+      fileName.textContent = file.name;
+      fileSize.textContent = formatFileSize(file.size);
+      fileStatus.textContent = "업로드 준비";
+      statusMessage.textContent = "";
+    }
+
+    function setSelectedFile(file) {
+      if (!file) {
+        selectedFile = null;
+        updateFileInfo(null);
+        return;
+      }
+
+      if (!isAllowedFile(file)) {
+        selectedFile = null;
+        audioFile.value = "";
+        result.textContent = "지원하지 않는 파일 형식입니다. wav, mp3, m4a만 업로드할 수 있습니다.";
+        fileStatus.textContent = "형식 오류";
+        statusMessage.textContent = "올바른 음성 파일을 선택하세요.";
+        fileName.textContent = "없음";
+        fileSize.textContent = "없음";
+        return;
+      }
+
+      selectedFile = file;
+      updateFileInfo(file);
+    }
+
+    audioFile.addEventListener("change", () => {
+      if (!audioFile.files.length) {
+        setSelectedFile(null);
+        return;
+      }
+
+      setSelectedFile(audioFile.files[0]);
+    });
+
+    ["dragenter", "dragover"].forEach(eventName => {
+      dropZone.addEventListener(eventName, event => {
+        event.preventDefault();
+        event.stopPropagation();
+        dropZone.classList.add("dragover");
+      });
+    });
+
+    ["dragleave", "dragend", "drop"].forEach(eventName => {
+      dropZone.addEventListener(eventName, event => {
+        event.preventDefault();
+        event.stopPropagation();
+        dropZone.classList.remove("dragover");
+      });
+    });
+
+    dropZone.addEventListener("drop", event => {
+      const files = event.dataTransfer.files;
+
+      if (!files || files.length === 0) {
+        return;
+      }
+
+      setSelectedFile(files[0]);
+    });
+
+    uploadButton.addEventListener("click", async () => {
+      if (!selectedFile) {
+        result.textContent = "파일을 선택하거나 드래그해서 넣어주세요.";
+        fileStatus.textContent = "파일 없음";
+        statusMessage.textContent = "먼저 음성 파일을 준비해야 합니다.";
+        return;
+      }
+
+      const formData = new FormData();
+      formData.append("file", selectedFile);
+
+      result.textContent = "변환 중...";
+      fileStatus.textContent = "업로드 중";
+      statusMessage.textContent = "서버로 파일을 전송하고 있습니다.";
+
+      try {
+        const response = await fetch("http://127.0.0.1:8000/stt", {
+          method: "POST",
+          body: formData
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+          result.textContent = JSON.stringify(data, null, 2);
+          fileStatus.textContent = "실패";
+          statusMessage.textContent = "서버 응답에 오류가 있습니다.";
+          return;
+        }
+
+        result.textContent = data.text || JSON.stringify(data, null, 2);
+        fileStatus.textContent = "완료";
+        statusMessage.textContent = "STT 변환이 완료되었습니다.";
+      } catch (error) {
+        result.textContent = "에러: " + error.message;
+        fileStatus.textContent = "실패";
+        statusMessage.textContent = "서버 연결 또는 요청 처리 중 오류가 발생했습니다.";
+      }
+    });
+
+    clearButton.addEventListener("click", () => {
+      selectedFile = null;
+      audioFile.value = "";
+      result.textContent = "여기에 STT 결과가 표시됩니다.";
+      fileName.textContent = "없음";
+      fileSize.textContent = "없음";
+      fileStatus.textContent = "대기 중";
+      statusMessage.textContent = "";
+    });
+  </script>
+</body>
+</html>

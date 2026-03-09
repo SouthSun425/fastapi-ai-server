@@ -1,95 +1,116 @@
 # -*- coding: utf-8 -*-
 
 import os
-import openai
-from fastapi import FastAPI, HTTPException
+from pathlib import Path
 
-openai.api_key = os.getenv("OPENAI_API_KEY")
-if not openai.api_key:
+from fastapi import FastAPI, UploadFile, File, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
+from openai import OpenAI
+
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+if not OPENAI_API_KEY:
     raise RuntimeError("OPENAI_API_KEY 환경변수가 설정되지 않았습니다.")
+
+client = OpenAI(api_key=OPENAI_API_KEY)
 
 app = FastAPI(
     title="AI FastAPI Server",
-    description="Whisper STT + 요약 API",
-    version="1.3.0"
+    description="Whisper STT API",
+    version="1.0.0"
 )
 
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-UPLOAD_DIR = os.path.join(BASE_DIR, "uploads")
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+BASE_DIR = Path(__file__).resolve().parent
+UPLOAD_DIR = BASE_DIR / "uploads"
+UPLOAD_DIR.mkdir(exist_ok=True)
 
 ALLOWED_EXTENSIONS = {".wav", ".mp3", ".m4a"}
-MAX_FILE_SIZE = 20 * 1024 * 1024
+MAX_FILE_SIZE = 25 * 1024 * 1024
 
 
-@app.get("/health")
-def health():
-    return {"status": "ok"}
+@app.get("/")
+def root():
+    return {"message": "STT server is running"}
 
 
-def validate_audio_file(file_path: str):
-    if not os.path.exists(file_path):
-        raise HTTPException(status_code=404, detail="파일을 찾을 수 없습니다.")
+@app.post("/stt")
+async def stt(file: UploadFile = File(...)):
+    if not file.filename:
+        raise HTTPException(status_code=400, detail="파일명이 없습니다.")
 
-    _, ext = os.path.splitext(file_path)
-    ext = ext.lower()
-
+    ext = Path(file.filename).suffix.lower()
     if ext not in ALLOWED_EXTENSIONS:
-        raise HTTPException(status_code=400, detail="허용되지 않은 파일 형식입니다.")
+        raise HTTPException(
+            status_code=400,
+            detail=f"지원하지 않는 파일 형식입니다. 허용 형식: {sorted(ALLOWED_EXTENSIONS)}"
+        )
 
-    file_size = os.path.getsize(file_path)
-    if file_size > MAX_FILE_SIZE:
-        raise HTTPException(status_code=400, detail="파일 용량 초과입니다.")
+    file_bytes = await file.read()
 
+    if len(file_bytes) == 0:
+        raise HTTPException(status_code=400, detail="빈 파일입니다.")
 
-def transcribe_audio(file_path: str) -> str:
+    if len(file_bytes) > MAX_FILE_SIZE:
+        raise HTTPException(status_code=400, detail="파일 크기가 너무 큽니다. 25MB 이하만 가능합니다.")
+
+    save_path = UPLOAD_DIR / file.filename
+    with open(save_path, "wb") as f:
+        f.write(file_bytes)
+
     try:
-        with open(file_path, "rb") as audio_file:
-            stt_result = openai.Audio.transcribe(
+        with open(save_path, "rb") as audio_file:
+            transcript = client.audio.transcriptions.create(
                 model="whisper-1",
                 file=audio_file
             )
-        return stt_result["text"]
+
+        text = transcript.text if hasattr(transcript, "text") else str(transcript)
+
+        return {
+            "filename": file.filename,
+            "saved_path": str(save_path),
+            "text": text
+        }
+
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"STT 실패: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"STT 처리 중 오류가 발생했습니다: {str(e)}")
 
 
-def summarize_text(text: str) -> str:
-    try:
-        summary_prompt = f"""
-아래는 음성 인식(STT) 결과입니다.
-핵심 내용만 간결하게 요약하고,
-필요하다면 할 일(Action Items)을 bullet point로 정리하세요.
+@app.post("/stt/from-uploads")
+async def stt_from_uploads(filename: str):
+    file_path = UPLOAD_DIR / filename
 
-[음성 텍스트]
-{text}
-"""
+    if not file_path.exists():
+        raise HTTPException(status_code=404, detail="uploads 폴더에 해당 파일이 없습니다.")
 
-        summary_response = openai.ChatCompletion.create(
-            model="gpt-3.5-turbo",
-            messages=[
-                {"role": "system", "content": "당신은 회의 요약을 전문으로 하는 비서입니다."},
-                {"role": "user", "content": summary_prompt}
-            ],
-            temperature=0.3
+    ext = file_path.suffix.lower()
+    if ext not in ALLOWED_EXTENSIONS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"지원하지 않는 파일 형식입니다. 허용 형식: {sorted(ALLOWED_EXTENSIONS)}"
         )
 
-        return summary_response["choices"][0]["message"]["content"]
+    try:
+        with open(file_path, "rb") as audio_file:
+            transcript = client.audio.transcriptions.create(
+                model="whisper-1",
+                file=audio_file
+            )
+
+        text = transcript.text if hasattr(transcript, "text") else str(transcript)
+
+        return {
+            "filename": filename,
+            "saved_path": str(file_path),
+            "text": text
+        }
+
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"요약 실패: {str(e)}")
-
-
-@app.post("/stt-summary/{filename}")
-def speech_to_text_and_summary(filename: str):
-    file_path = os.path.join(UPLOAD_DIR, filename)
-
-    validate_audio_file(file_path)
-
-    stt_text = transcribe_audio(file_path)
-    summary_text = summarize_text(stt_text)
-
-    return {
-        "filename": filename,
-        "file_path": file_path,
-        "stt_text": stt_text,
-        "summary_text": summary_text
-    }
+        raise HTTPException(status_code=500, detail=f"STT 처리 중 오류가 발생했습니다: {str(e)}")
