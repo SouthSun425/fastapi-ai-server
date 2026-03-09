@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>STT 페이지</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+    <div class="page-card">
+        <h1>STT 페이지</h1>
+        <button id="logout-btn" type="button">로그아웃</button>
+        <p id="user-info"></p>
+    </div>
+
+    <div class="page-card">
+        <h2>음성 변환</h2>
+
+        <form id="stt-form">
+            <div>
+                <label for="audio-file">음성 파일</label>
+                <input type="file" id="audio-file" name="file" accept=".wav,.mp3,.m4a" required>
+            </div>
+
+            <button type="submit">STT 변환</button>
+        </form>
+
+        <div id="message-box" class="status-box">
+            <p id="message"></p>
+        </div>
+    </div>
+
+    <div class="page-card">
+        <h2>내 오늘 사용량</h2>
+        <button id="load-usage-btn" type="button">사용량 조회</button>
+        <p id="usage-info"></p>
+    </div>
+
+    <div class="page-card">
+        <h2>변환 결과</h2>
+        <pre id="result-text">아직 변환 결과가 없습니다.</pre>
+    </div>
+
+    <script src="/static/js/stt.js"></script>
+</body>
+</html>

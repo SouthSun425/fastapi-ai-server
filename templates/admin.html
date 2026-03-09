@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>관리자 페이지</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+    <div class="page-card">
+        <h1>관리자 페이지</h1>
+        <button id="logout-btn" type="button">로그아웃</button>
+        <p id="admin-info"></p>
+        <p id="message"></p>
+    </div>
+
+    <div class="page-card">
+        <h2>사용자 목록</h2>
+        <button id="load-users-btn" type="button">사용자 목록 불러오기</button>
+        <div id="users-container"></div>
+    </div>
+
+    <div class="page-card">
+        <h2>오늘 사용자별 사용량</h2>
+        <button id="load-usage-btn" type="button">사용량 불러오기</button>
+        <div id="usage-container"></div>
+    </div>
+
+    <script src="/static/js/admin.js"></script>
+</body>
+</html>

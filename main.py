@@ -3,44 +3,52 @@
 import os
 from typing import Optional
 
-from fastapi import FastAPI, UploadFile, File, HTTPException, Depends, Body
+from fastapi import (
+    FastAPI,
+    UploadFile,
+    File,
+    HTTPException,
+    Depends,
+    Body,
+    Request,
+)
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from fastapi.responses import HTMLResponse
+from fastapi.templating import Jinja2Templates
+from fastapi.staticfiles import StaticFiles
 from sqlalchemy.orm import Session
+from sqlalchemy import func
 
 from database import get_db
 from models import User, UsageLog
 from schemas import UserSignup, UserLogin
-from auth import hash_password, verify_password
+from auth import (
+    hash_password,
+    verify_password,
+    create_access_token,
+    verify_access_token,
+)
 
-# OpenAI SDK를 쓰는 경우에만 필요
-# openai 패키지 버전이 1.x 이상일 때 사용
 try:
     from openai import OpenAI
 except ImportError:
     OpenAI = None
 
 
-# =========================
-# 환경변수
-# =========================
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
-# OpenAI SDK 사용 가능하고 키가 있으면 client 생성
 client: Optional[OpenAI] = None
 if OpenAI and OPENAI_API_KEY:
     client = OpenAI(api_key=OPENAI_API_KEY)
 
 
-# =========================
-# FastAPI 앱 생성
-# =========================
 app = FastAPI(
     title="AI FastAPI Server",
     description="Whisper STT + 회원가입/로그인/관리자 API",
-    version="2.0.0"
+    version="2.4.0"
 )
 
-# 필요하면 프론트엔드 연동용 CORS 허용
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -49,10 +57,11 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+templates = Jinja2Templates(directory="templates")
+app.mount("/static", StaticFiles(directory="static"), name="static")
 
-# =========================
-# 파일 업로드 설정
-# =========================
+security = HTTPBearer()
+
 UPLOAD_DIR = "uploads"
 ALLOWED_EXTENSIONS = {".wav", ".mp3", ".m4a"}
 MAX_FILE_SIZE = 25 * 1024 * 1024
@@ -60,13 +69,7 @@ MAX_FILE_SIZE = 25 * 1024 * 1024
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
 
-# =========================
-# 공통 함수
-# =========================
 def validate_audio_file(filename: str):
-    """
-    업로드 파일 확장자 검사
-    """
     ext = os.path.splitext(filename)[1].lower()
     if ext not in ALLOWED_EXTENSIONS:
         raise HTTPException(
@@ -76,37 +79,13 @@ def validate_audio_file(filename: str):
 
 
 def save_upload_file(upload_file: UploadFile, contents: bytes) -> str:
-    """
-    업로드된 파일을 uploads 폴더에 저장
-    """
     file_path = os.path.join(UPLOAD_DIR, upload_file.filename)
     with open(file_path, "wb") as f:
         f.write(contents)
     return file_path
 
 
-def get_admin_user(db: Session = Depends(get_db)):
-    """
-    현재 단계에서는 관리자 계정을 이메일로 고정해서 확인
-    나중에는 JWT 로그인 기반으로 교체해야 함
-    """
-    admin_user = db.query(User).filter(User.email == "namtaeyang@gmail.com").first()
-
-    if not admin_user:
-        raise HTTPException(status_code=404, detail="관리자 계정을 찾을 수 없습니다.")
-
-    if not admin_user.is_admin:
-        raise HTTPException(status_code=403, detail="관리자 권한이 없습니다.")
-
-    return admin_user
-
-
 def get_today_usage_count(db: Session, user_id: int) -> int:
-    """
-    오늘 성공한 사용 횟수 조회
-    """
-    from sqlalchemy import func
-
     count = (
         db.query(func.count(UsageLog.id))
         .filter(
@@ -120,9 +99,6 @@ def get_today_usage_count(db: Session, user_id: int) -> int:
 
 
 def check_user_can_use_stt(db: Session, user: User):
-    """
-    STT 사용 가능 여부 검사
-    """
     if not user.is_active:
         raise HTTPException(status_code=403, detail="비활성화된 계정입니다.")
 
@@ -138,24 +114,66 @@ def check_user_can_use_stt(db: Session, user: User):
         raise HTTPException(status_code=403, detail="오늘 사용 한도를 초과했습니다.")
 
 
-# =========================
-# 기본 확인용
-# =========================
-@app.get("/")
-def root():
+def get_current_user(
+    credentials: HTTPAuthorizationCredentials = Depends(security),
+    db: Session = Depends(get_db)
+):
+    token = credentials.credentials
+
+    try:
+        payload = verify_access_token(token)
+    except ValueError:
+        raise HTTPException(status_code=401, detail="유효하지 않은 토큰입니다.")
+
+    email = payload.get("sub")
+    if not email:
+        raise HTTPException(status_code=401, detail="토큰에 사용자 정보가 없습니다.")
+
+    user = db.query(User).filter(User.email == email).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="사용자를 찾을 수 없습니다.")
+
+    return user
+
+
+def get_admin_user(current_user: User = Depends(get_current_user)):
+    if not current_user.is_admin:
+        raise HTTPException(status_code=403, detail="관리자 권한이 없습니다.")
+    return current_user
+
+
+@app.get("/", response_class=HTMLResponse)
+def home_page(request: Request):
+    return templates.TemplateResponse("login.html", {"request": request})
+
+
+@app.get("/login-page", response_class=HTMLResponse)
+def login_page(request: Request):
+    return templates.TemplateResponse("login.html", {"request": request})
+
+
+@app.get("/signup-page", response_class=HTMLResponse)
+def signup_page(request: Request):
+    return templates.TemplateResponse("signup.html", {"request": request})
+
+
+@app.get("/admin-page", response_class=HTMLResponse)
+def admin_page(request: Request):
+    return templates.TemplateResponse("admin.html", {"request": request})
+
+
+@app.get("/stt-page", response_class=HTMLResponse)
+def stt_page(request: Request):
+    return templates.TemplateResponse("stt.html", {"request": request})
+
+
+@app.get("/health")
+def health():
     return {"message": "FastAPI 서버 실행 중"}
 
 
-# =========================
-# 회원가입 API
-# =========================
 @app.post("/signup")
 def signup(user: UserSignup, db: Session = Depends(get_db)):
-    """
-    회원가입
-    - 같은 이메일이 있으면 가입 불가
-    - 가입 직후에는 STT 사용 불가
-    """
     existing_user = db.query(User).filter(User.email == user.email).first()
     if existing_user:
         raise HTTPException(status_code=400, detail="이미 가입된 이메일입니다.")
@@ -180,25 +198,32 @@ def signup(user: UserSignup, db: Session = Depends(get_db)):
     }
 
 
-# =========================
-# 로그인 API
-# =========================
 @app.post("/login")
 def login(user: UserLogin, db: Session = Depends(get_db)):
-    """
-    로그인
-    - 이메일/비밀번호 확인
-    """
     db_user = db.query(User).filter(User.email == user.email).first()
 
     if not db_user:
         raise HTTPException(status_code=401, detail="이메일 또는 비밀번호가 올바르지 않습니다.")
 
-    if not verify_password(user.password, db_user.password_hash):
+    try:
+        password_ok = verify_password(user.password, db_user.password_hash)
+    except Exception:
         raise HTTPException(status_code=401, detail="이메일 또는 비밀번호가 올바르지 않습니다.")
+
+    if not password_ok:
+        raise HTTPException(status_code=401, detail="이메일 또는 비밀번호가 올바르지 않습니다.")
+
+    access_token = create_access_token(
+        data={
+            "sub": db_user.email,
+            "is_admin": db_user.is_admin
+        }
+    )
 
     return {
         "message": "로그인 성공",
+        "access_token": access_token,
+        "token_type": "bearer",
         "email": db_user.email,
         "is_admin": db_user.is_admin,
         "is_active": db_user.is_active,
@@ -208,18 +233,38 @@ def login(user: UserLogin, db: Session = Depends(get_db)):
     }
 
 
-# =========================
-# 관리자 - 전체 사용자 목록 조회
-# =========================
+@app.get("/me")
+def get_me(current_user: User = Depends(get_current_user)):
+    return {
+        "email": current_user.email,
+        "is_admin": current_user.is_admin,
+        "is_active": current_user.is_active,
+        "can_use_stt": current_user.can_use_stt,
+        "is_unlimited": current_user.is_unlimited,
+        "daily_limit": current_user.daily_limit
+    }
+
+
+@app.get("/my/usage/today")
+def get_my_today_usage(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    today_count = get_today_usage_count(db, current_user.id)
+
+    return {
+        "email": current_user.email,
+        "today_usage_count": today_count,
+        "daily_limit": current_user.daily_limit,
+        "is_unlimited": current_user.is_unlimited
+    }
+
+
 @app.get("/admin/users")
 def get_users(
     admin_user: User = Depends(get_admin_user),
     db: Session = Depends(get_db)
 ):
-    """
-    전체 사용자 목록 조회
-    현재는 관리자 계정 이메일 고정 방식으로 보호
-    """
     users = db.query(User).all()
 
     result = []
@@ -237,18 +282,12 @@ def get_users(
     return result
 
 
-# =========================
-# 관리자 - 특정 사용자 STT 사용 승인
-# =========================
 @app.post("/admin/users/enable")
 def enable_user(
     email: str = Body(..., embed=True),
     admin_user: User = Depends(get_admin_user),
     db: Session = Depends(get_db)
 ):
-    """
-    특정 사용자의 STT 사용 승인
-    """
     user = db.query(User).filter(User.email == email).first()
 
     if not user:
@@ -265,18 +304,12 @@ def enable_user(
     }
 
 
-# =========================
-# 관리자 - 특정 사용자 STT 사용 차단
-# =========================
 @app.post("/admin/users/disable")
 def disable_user(
     email: str = Body(..., embed=True),
     admin_user: User = Depends(get_admin_user),
     db: Session = Depends(get_db)
 ):
-    """
-    특정 사용자의 STT 사용 차단
-    """
     user = db.query(User).filter(User.email == email).first()
 
     if not user:
@@ -293,18 +326,12 @@ def disable_user(
     }
 
 
-# =========================
-# 관리자 - 특정 사용자 무제한 사용 설정
-# =========================
 @app.post("/admin/users/set-unlimited")
 def set_unlimited_user(
     email: str = Body(..., embed=True),
     admin_user: User = Depends(get_admin_user),
     db: Session = Depends(get_db)
 ):
-    """
-    특정 사용자를 무제한 사용자로 변경
-    """
     user = db.query(User).filter(User.email == email).first()
 
     if not user:
@@ -322,9 +349,6 @@ def set_unlimited_user(
     }
 
 
-# =========================
-# 관리자 - 특정 사용자 일일 제한 사용자로 변경
-# =========================
 @app.post("/admin/users/set-limited")
 def set_limited_user(
     email: str = Body(..., embed=True),
@@ -332,9 +356,6 @@ def set_limited_user(
     admin_user: User = Depends(get_admin_user),
     db: Session = Depends(get_db)
 ):
-    """
-    특정 사용자를 제한 사용자로 변경
-    """
     user = db.query(User).filter(User.email == email).first()
 
     if not user:
@@ -356,17 +377,11 @@ def set_limited_user(
     }
 
 
-# =========================
-# 관리자 - 사용자별 오늘 사용량 조회
-# =========================
 @app.get("/admin/usage/today")
 def get_today_usage(
     admin_user: User = Depends(get_admin_user),
     db: Session = Depends(get_db)
 ):
-    """
-    오늘 사용자별 STT 사용량 조회
-    """
     users = db.query(User).all()
 
     result = []
@@ -382,26 +397,13 @@ def get_today_usage(
     return result
 
 
-# =========================
-# STT API
-# =========================
 @app.post("/stt")
 async def transcribe_audio(
-    email: str = Body(..., embed=True),
     file: UploadFile = File(...),
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """
-    음성 파일 업로드 후 STT 변환
-    현재는 로그인 토큰 없이 email로 사용자 식별
-    나중에는 JWT 인증으로 바꿔야 함
-    """
-    user = db.query(User).filter(User.email == email).first()
-
-    if not user:
-        raise HTTPException(status_code=404, detail="사용자를 찾을 수 없습니다.")
-
-    check_user_can_use_stt(db, user)
+    check_user_can_use_stt(db, current_user)
 
     validate_audio_file(file.filename)
 
@@ -412,7 +414,6 @@ async def transcribe_audio(
 
     file_path = save_upload_file(file, contents)
 
-    # OpenAI 클라이언트 준비 안 된 경우
     if client is None:
         raise HTTPException(
             status_code=500,
@@ -426,9 +427,8 @@ async def transcribe_audio(
                 file=audio_file
             )
 
-        # 사용 성공 로그 저장
         usage_log = UsageLog(
-            user_id=user.id,
+            user_id=current_user.id,
             file_name=file.filename,
             status="success"
         )
@@ -437,15 +437,14 @@ async def transcribe_audio(
 
         return {
             "message": "STT 변환 완료",
-            "email": user.email,
+            "email": current_user.email,
             "filename": file.filename,
             "text": transcript.text
         }
 
     except Exception as e:
-        # 실패 로그 저장
         usage_log = UsageLog(
-            user_id=user.id,
+            user_id=current_user.id,
             file_name=file.filename,
             status="failed"
         )
@@ -453,22 +452,3 @@ async def transcribe_audio(
         db.commit()
 
         raise HTTPException(status_code=500, detail=f"STT 변환 실패: {str(e)}")
-
-@app.get("/my/usage/today")
-def get_my_today_usage(
-    email: str,
-    db: Session = Depends(get_db)
-):
-    user = db.query(User).filter(User.email == email).first()
-
-    if not user:
-        raise HTTPException(status_code=404, detail="사용자를 찾을 수 없습니다.")
-
-    today_count = get_today_usage_count(db, user.id)
-
-    return {
-        "email": user.email,
-        "today_usage_count": today_count,
-        "daily_limit": user.daily_limit,
-        "is_unlimited": user.is_unlimited
-    }

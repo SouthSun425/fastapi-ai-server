@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>로그인</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+    <div class="page-card">
+        <p style="margin-bottom: 8px; color: #2563eb; font-weight: 700;">AI STT Service</p>
+        <h1>로그인</h1>
+        <p style="margin-top: -8px; margin-bottom: 24px; color: #6b7280;">
+            승인된 사용자만 음성 변환 기능을 사용할 수 있습니다.
+        </p>
+
+        <div>
+            <label for="email">이메일</label>
+            <input type="email" id="email" name="email" required>
+        </div>
+
+        <div>
+            <label for="password">비밀번호</label>
+            <input type="password" id="password" name="password" required>
+        </div>
+
+        <button id="login-btn" type="button">로그인</button>
+
+        <p id="message"></p>
+
+        <p>
+            <a href="/signup-page">회원가입 페이지로 이동</a>
+        </p>
+    </div>
+
+    <script src="/static/js/login.js?v=2"></script>
+</body>
+</html>
