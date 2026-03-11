@@ -1,3 +1,19 @@
+Running the FastAPI server
+
+cd C:\fastapi-ai-server venv\Scripts\activate uvicorn main:app --reload
+
+Running the local web server cd C:\fastapi-ai-server python -m http.server 5500
+
+Local web address http://localhost:8000/
+
+Login: http://127.0.0.1:8000/login-page Signup: http://127.0.0.1:8000/signup-page Admin: http://127.0.0.1:8000/admin-page STT page: http://127.0.0.1:8000/stt-page ) You need to configure a PostgreSQL database. You need to create an .env file and insert your personal API key and PostgreSQL URL value. This project is designed to load values ​​from environment variables due to development environment issues.
+
+26.03.09 Successful test connecting the API server to the local web
+
+----------------------------------------------------------------------
+
+----------------------------------------------------------------------
+
 FastAPI 서버 실행
 
 cd C:\fastapi-ai-server
